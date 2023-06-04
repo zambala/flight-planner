@@ -13,7 +13,6 @@ Your goal is to create an application which can store flights between different 
 ## Assignments
 
 **Before any step**
-**Before any step**
 
 Create a branch named **exactly** as required in each step, otherwise pull request will be declined.
  
