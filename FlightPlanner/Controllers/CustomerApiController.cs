@@ -1,80 +1,79 @@
-﻿using System.Linq;
-using FlightPlanner.Models;
-using FlightPlanner.Storage;
-using FlightPlanner.Validate;
-using Microsoft.AspNetCore.Http;
+﻿using System.Collections.Generic;
+using AutoMapper;
+using FlightPlanner.API.Models;
+using FlightPlanner.Core.Models;
+using FlightPlanner.Core.Services;
+using FlightPlanner.Core.Validations;
+using FlightPlanner.Data;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
-namespace FlightPlanner.Controllers
+namespace FlightPlanner.API.Controllers
 {
     [Route("api")]
     [ApiController]
-    public class CustomerApiController : BaseApiController
+    public class CustomerApiController : ControllerBase
     {
-        public CustomerApiController(FlightPlannerDbContext context) : base(context)
+        private readonly ICustomerService _customerService;
+        private readonly IMapper _mapper;
+        private readonly IFlightSearchValidate _flightSearchValidator;
+
+        public CustomerApiController(
+            ICustomerService customerService,
+            IFlightSearchValidate flightSearchValidator,
+            IMapper mapper)
         {
+            _customerService = customerService;
+            _flightSearchValidator = flightSearchValidator;
+            _mapper = mapper;
         }
 
         [HttpGet]
         [Route("airports")]
         public IActionResult GetAirport(string search)
         {
-            if(string.IsNullOrEmpty(search)) return BadRequest();
+            var result = _customerService.GetAllAirports(search);
 
-            var lowerSearch = search.Trim().ToLower();
+            if (result == null) return NotFound();
 
-            var result = _context.Airports
-                .Where(a => a.AirportCode.Contains(lowerSearch) ||
-                            a.City.Contains(lowerSearch) ||
-                            a.Country.Contains(lowerSearch))
-                .ToList();
+            List<AirportSearchResult> searchResult = new List<AirportSearchResult>();
 
-            return Ok(result);
+            foreach (var airport in result)
+            {
+                searchResult.Add(new AirportSearchResult
+                {
+                    Airport = airport.AirportCode,
+                    City = airport.City,
+                    Country = airport.Country
+                });
+            }
+
+            return Ok(searchResult);
         }
 
         [HttpPost]
         [Route("flights/search")]
         public IActionResult SearchFlight(FlightSearch searchFlight)
         {
-            if (ValidateSearch.HasInvalidDetails(searchFlight) ||
-                ValidateSearch.MatchingAirport(searchFlight))
-                return BadRequest();
+            if (_flightSearchValidator.IsValid(searchFlight)) return BadRequest();
 
+            var flights = _customerService.FindFlights(searchFlight);
 
-            var result = _context.Flights
-                .Include(f => f.From)
-                .Include(f => f.To)
-                .Where(f => f.From.AirportCode == searchFlight.From &&
-                            f.To.AirportCode == searchFlight.To &&
-                            f.DepartureTime.StartsWith(searchFlight.DepartureDate))
-                .ToList();
+            PagedFlightSearchResult searchResult = _mapper.Map<PagedFlightSearchResult>(flights);
 
-            var response = new
-            {
-                page = 0,
-                totalItems = result.Count,
-                items = result
-            };
-
-            return Ok(response);
+            return Ok(searchResult);
         }
 
         [HttpGet]
         [Route("flights/{id:int}")]
         public IActionResult GetFlight(int id)
         {
-            var flight = _context.Flights
-                .Include(f => f.From)
-                .Include(f => f.To)
-                .FirstOrDefault(f => f.Id == id);
+            var flight = _customerService.GetFullFlight(id);
 
-            if (flight == null)
-            {
-                return NotFound();
-            }
+            if (flight == null) return NotFound();
 
-            return Ok(flight);
+            var flightResult = _mapper.Map<FlightSearchResult>(flight);
+
+            return Ok(flightResult);
         }
     }
 }

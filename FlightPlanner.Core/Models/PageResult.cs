@@ -1,7 +1,6 @@
-﻿using Flight_plannerAPI.Models;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
-namespace FlightPlanner.Models
+namespace FlightPlanner.Core.Models
 {
     public class PageResult
     {
